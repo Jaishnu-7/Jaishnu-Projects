@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Endorsement Module - Insurance</title>
+  <style>
+    :root{
+      --primary:#c11b1b; /* deep red */
+      --accent:#e85b5b; /* lighter red */
+      --bg:#fff;
+      --muted:#666;
+      --border:#eee;
+      --radius:8px;
+      font-family: Inter, system-ui, -apple-system, Arial, sans-serif;
+    }
+    body{background:var(--bg); color:#111; margin:20px;}
+    .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 4px 18px rgba(0,0,0,0.04)}
+    header.top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .top-left{display:flex;gap:8px;align-items:center}
+    button.btn{background:transparent;border:1px solid var(--primary);color:var(--primary);padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+    .controls{display:flex;gap:8px;align-items:center}
+    .controls .small{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:#fff}
+    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+    .searchbox{display:flex;align-items:center;gap:8px}
+    input[type="text"], input[type="number"], input[type="date"], select, textarea{padding:8px;border-radius:8px;border:1px solid var(--border);min-width:160px}
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:collapse}
+    th, td{padding:10px;border-bottom:1px solid #f2f2f2;text-align:left}
+    th{background:#fff;position:sticky;top:0}
+    .chip{padding:6px 8px;border-radius:6px;border:1px solid var(--border);display:inline-block}
+    .actions button{margin-right:6px}
+
+    /* Page flow (modal) */
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:20px}
+    .modal.open{display:flex}
+    .modal .sheet{width:100%;max-width:920px;background:#fff;border-radius:12px;padding:18px;max-height:90vh;overflow:auto}
+    .steps{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .step{padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:#fff}
+    .step.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+    .page{border:1px solid #f4f4f4;padding:12px;border-radius:8px;margin-bottom:10px}
+    .page h3{margin:0 0 6px 0;color:var(--primary)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+    .col{flex:1;min-width:160px}
+    .muted{color:var(--muted);font-size:13px}
+    .page-footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+    .danger{background:#fff;border:1px solid #e5b0b0;color:var(--primary)}
+
+    /* collapse style for page wise dropdown display */
+    .accordion .acc-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:10px;border-radius:8px;border:1px solid var(--border);background:#fff}
+    .acc-body{padding:10px;border-left:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);border-radius:0 0 8px 8px}
+
+    /* responsive */
+    @media (max-width:700px){.row{flex-direction:column}.top{flex-direction:column}.controls{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <header class="top">
+      <div class="top-left">
+        <button id="allLeads" class="btn">All leads</button>
+        <button id="pendingLeads" class="btn">Pending leads</button>
+      </div>
+      <div class="controls">
+        <div class="toolbar">
+          <button id="refreshBtn" class="small">Refresh</button>
+          <button id="filterBtn" class="small">Filter</button>
+          <button id="customizeBtn" class="small">Customize Columns</button>
+        </div>
+        <div class="searchbox">
+          <input id="globalSearch" type="text" placeholder="Search by name, cert no, mobile..." />
+          <button id="searchBtn" class="btn">Search</button>
+        </div>
+        <button id="raiseBtn" class="btn primary">Raise Endorsement</button>
+      </div>
+    </header>
+
+    <div class="table-wrap card" style="padding:10px;">
+      <table id="leadsTable">
+        <thead>
+          <tr>
+            <th>Lob</th>
+            <th>Certificate No</th>
+            <th>Insurance Company</th>
+            <th>Proposer Name</th>
+            <th>Mobile No</th>
+            <th>Endorsement Raised Date</th>
+            <th>Endorsement Type</th>
+            <th>Approved Date</th>
+            <th>Rejected Date</th>
+            <th>Endorsement Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- sample rows -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal: Ask Certificate No / Trace Id first -->
+  <div id="lookupModal" class="modal">
+    <div class="sheet">
+      <h2 style="color:var(--primary)">Start Raise Endorsement</h2>
+      <p class="muted">Enter Certificate No or Trace Id to lookup policy before starting page-wise endorsement flow.</p>
+      <div class="row">
+        <div class="col"><input id="lookupInput" type="text" placeholder="Certificate No or Trace Id" /></div>
+        <div class="col" style="flex:0 0 140px"><button id="lookupStart" class="btn primary">Start</button></div>
+      </div>
+      <div style="margin-top:8px;" class="muted">If policy found you'll see the page-wise form. Otherwise you can create new proposal details.</div>
+      <div style="text-align:right;margin-top:8px"><button id="lookupCancel" class="btn">Cancel</button></div>
+    </div>
+  </div>
+
+  <!-- Multi-page modal -->
+  <div id="flowModal" class="modal">
+    <div class="sheet">
+      <h2 style="color:var(--primary)">Raise Endorsement - Page Flow</h2>
+      <div class="steps" id="stepDots">
+        <div class="step active" data-step="1">1. Members</div>
+        <div class="step" data-step="2">2. Proposal</div>
+        <div class="step" data-step="3">3. CKYC / Aadhaar</div>
+        <div class="step" data-step="4">4. Insured Details</div>
+        <div class="step" data-step="5">5. Nominee</div>
+      </div>
+
+      <div class="accordion">
+        <!-- Page 1 -->
+        <div class="page" data-page="1">
+          <div class="acc-head" onclick="toggleAcc(this)">
+            <div>
+              <h3>Select Members for Coverage</h3>
+              <div class="muted">Choose the individuals you wish to cover under this health insurance plan.</div>
+            </div>
+            <div class="chip">Page 1</div>
+          </div>
+          <div class="acc-body">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
+              <button class="btn" onclick="addMember()">Addition</button>
+              <button class="btn danger" onclick="markCorrection(1)">Correction</button>
+              <button class="btn" onclick="markDeletion(1)">Deletion</button>
+            </div>
+
+            <div id="membersList">
+              <!-- dynamic list of members with relation and age box -->
+            </div>
+            <div style="margin-top:8px">
+              <button class="btn" onclick="addMemberRow()">+ Add member row</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 2 -->
+        <div class="page" data-page="2">
+          <div class="acc-head" onclick="toggleAcc(this)">
+            <div>
+              <h3>Proposal Details</h3>
+              <div class="muted">Enter proposal contact and identity details</div>
+            </div>
+            <div class="chip">Page 2</div>
+          </div>
+          <div class="acc-body">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
+              <button class="btn danger" onclick="markCorrection(2)">Correction</button>
+              <button class="btn" onclick="markDeletion(2)">Deletion</button>
+            </div>
+            <div class="row">
+              <div class="col"><label>Full Name</label><input id="prop_name" type="text" /></div>
+              <div class="col"><label>Email Address</label><input id="prop_email" type="text" /></div>
+              <div class="col"><label>Mobile Number</label><input id="prop_mobile" type="text" /></div>
+              <div class="col"><label>Gender</label><select id="prop_gender"><option>Male</option><option>Female</option><option>Other</option></select></div>
+            </div>
+            <div class="row">
+              <div class="col"><label>PAN No</label><input id="prop_pan" type="text"/></div>
+              <div class="col"><label>Birth Date</label><input id="prop_dob" type="date"/></div>
+              <div class="col"><label>Address Line 1</label><input id="prop_addr1" type="text"/></div>
+              <div class="col"><label>Address Line 2</label><input id="prop_addr2" type="text"/></div>
+              <div class="col"><label>Pincode</label><input id="prop_pin" type="text"/></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 3 -->
+        <div class="page" data-page="3">
+          <div class="acc-head" onclick="toggleAcc(this)">
+            <div>
+              <h3>CKYC / Aadhaar Card</h3>
+              <div class="muted">Upload front and back of Aadhaar</div>
+            </div>
+            <div class="chip">Page 3</div>
+          </div>
+          <div class="acc-body">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
+              <button class="btn danger" onclick="markCorrection(3)">Correction</button>
+              <button class="btn" onclick="markDeletion(3)">Deletion</button>
+            </div>
+            <div class="row">
+              <div class="col"><label>Aadhaar Number</label><input id="aadhaar_no" type="text"/></div>
+              <div class="col"><label>Front Side Aadhaar</label><input id="aadhaar_front" type="file" accept="image/*"/></div>
+              <div class="col"><label>Back Side Aadhaar</label><input id="aadhaar_back" type="file" accept="image/*"/></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 4 -->
+        <div class="page" data-page="4">
+          <div class="acc-head" onclick="toggleAcc(this)">
+            <div>
+              <h3>Insured Members Details</h3>
+              <div class="muted">Self (values shown for selected member)</div>
+            </div>
+            <div class="chip">Page 4</div>
+          </div>
+          <div class="acc-body">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
+              <button class="btn danger" onclick="markCorrection(4)">Correction</button>
+              <button class="btn" onclick="markDeletion(4)">Deletion</button>
+            </div>
+            <div class="row">
+              <div class="col"><label>Name (frozen)</label><input id="ins_name" type="text" disabled/></div>
+              <div class="col"><label>Date of Birth (frozen)</label><input id="ins_dob" type="date" disabled/></div>
+              <div class="col"><label>Height (cm)</label><input id="ins_height" type="number"/></div>
+              <div class="col"><label>Weight (kg)</label><input id="ins_weight" type="number"/></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 5 -->
+        <div class="page" data-page="5">
+          <div class="acc-head" onclick="toggleAcc(this)">
+            <div>
+              <h3>Nominee Details</h3>
+              <div class="muted">Provide nominee relation and details</div>
+            </div>
+            <div class="chip">Page 5</div>
+          </div>
+          <div class="acc-body">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
+              <button class="btn" onclick="addNominee()">Addition</button>
+              <button class="btn danger" onclick="markCorrection(5)">Correction</button>
+              <button class="btn" onclick="markDeletion(5)">Deletion</button>
+            </div>
+            <div id="nomineeList"></div>
+            <div style="margin-top:8px"><button class="btn" onclick="addNomineeRow()">+ Add nominee row</button></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="page-footer">
+        <div class="muted">You can navigate pages using Next / Back below. Pages show as accordions above.</div>
+        <div>
+          <button id="prevPage" class="btn">Back</button>
+          <button id="nextPage" class="btn primary">Next</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // sample data for table
+    const sample = [
+      {lob:'Health', cert:'CERT12345', company:'Acme Insurance', proposer:'Rahul Sharma', mobile:'9876543210', raised:'2025-11-10', type:'Addition', approved:'', rejected:'', status:'Pending'},
+      {lob:'Travel', cert:'TRC9876', company:'SafeTravel Co', proposer:'Anita Desai', mobile:'9123456780', raised:'2025-10-01', type:'Correction', approved:'2025-10-05', rejected:'', status:'Approved'}
+    ];
+
+    function renderTable(rows){
+      const tbody = document.getElementById('tableBody'); tbody.innerHTML='';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.lob}</td>
+          <td>${r.cert}</td>
+          <td>${r.company}</td>
+          <td>${r.proposer}</td>
+          <td>${r.mobile}</td>
+          <td>${r.raised}</td>
+          <td>${r.type}</td>
+          <td>${r.approved}</td>
+          <td>${r.rejected}</td>
+          <td>${r.status}</td>
+          <td class="actions"><button class="btn" onclick="viewLead('${r.cert}')">View</button><button class="btn" onclick="editLead('${r.cert}')">Edit</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+    renderTable(sample);
+
+    // Buttons
+    document.getElementById('refreshBtn').addEventListener('click', ()=>{alert('Refreshed'); renderTable(sample)});
+    document.getElementById('filterBtn').addEventListener('click', ()=>{alert('Open filter panel (not implemented)');});
+    document.getElementById('customizeBtn').addEventListener('click', ()=>{alert('Customize columns (not implemented)');});
+    document.getElementById('searchBtn').addEventListener('click', ()=>{const q=document.getElementById('globalSearch').value.toLowerCase(); const filtered = sample.filter(s=>Object.values(s).join(' ').toLowerCase().includes(q)); renderTable(filtered)});
+
+    function viewLead(cert){alert('View lead: '+cert)}
+    function editLead(cert){alert('Edit lead: '+cert)}
+
+    // Raise flow
+    const raiseBtn = document.getElementById('raiseBtn');
+    const lookupModal = document.getElementById('lookupModal');
+    const flowModal = document.getElementById('flowModal');
+    raiseBtn.addEventListener('click', ()=>{lookupModal.classList.add('open')});
+    document.getElementById('lookupCancel').addEventListener('click', ()=>{lookupModal.classList.remove('open')});
+
+    document.getElementById('lookupStart').addEventListener('click', ()=>{
+      const val = document.getElementById('lookupInput').value.trim();
+      lookupModal.classList.remove('open');
+      // Here you'd call API to fetch certificate. We'll simulate delay then open flow modal.
+      if(!val){ if(!confirm('No Certificate entered. Proceed to create new endorsement?')) return; }
+      openFlow();
+    });
+
+    function openFlow(){
+      flowModal.classList.add('open');
+      currentPage = 1; updateSteps(); openAccordionByPage(1);
+      // prefill insured name for demo
+      document.getElementById('ins_name').value = 'Self Name Example';
+      document.getElementById('ins_dob').value = '1990-01-01';
+    }
+
+    // Accordion behaviour
+    function toggleAcc(el){
+      const pageEl = el.closest('.page');
+      const body = pageEl.querySelector('.acc-body');
+      const open = body.style.display !== 'block';
+      // close others if needed
+      // but requirement: All pages displayed once click and page-wise flow - we'll keep them all open by default when active
+      body.style.display = open ? 'block' : 'none';
+    }
+    // show all acc bodies initially collapsed
+    document.querySelectorAll('.page .acc-body').forEach(b=>{b.style.display='none'});
+
+    // Page navigation
+    let currentPage = 1;
+    document.getElementById('nextPage').addEventListener('click', ()=>{ if(currentPage<5){ currentPage++; updateSteps(); openAccordionByPage(currentPage);} else { alert('Last page reached. You can submit or review.'); }});
+    document.getElementById('prevPage').addEventListener('click', ()=>{ if(currentPage>1){ currentPage--; updateSteps(); openAccordionByPage(currentPage);} });
+
+    function updateSteps(){
+      document.querySelectorAll('.steps .step').forEach(s=>{s.classList.remove('active'); if(parseInt(s.dataset.step)===currentPage) s.classList.add('active');});
+    }
+    function openAccordionByPage(n){
+      document.querySelectorAll('.page').forEach(p=>{ const body = p.querySelector('.acc-body'); if(parseInt(p.dataset.page)===n){ body.style.display='block'; p.scrollIntoView({behavior:'smooth', block:'center'});} else { body.style.display='none'; }});
+    }
+
+    // Members list logic
+    function addMemberRow(data){
+      const id = 'm'+Date.now();
+      const div = document.createElement('div');
+      div.className='row member-row';
+      div.innerHTML = `
+        <div class="col"><label>Relation</label><select class="member-rel"><option>Self</option><option>Spouse</option><option>Son</option><option>Daughter</option><option>Father</option><option>Mother</option><option>Brother</option><option>Sister</option><option>Father-in-law</option><option>Mother-in-law</option><option>Grand Father</option><option>Grand Mother</option></select></div>
+        <div class="col"><label>Age</label><input type="number" class="member-age" min="0" /></div>
+        <div class="col"><label>Name</label><input type="text" class="member-name" /></div>
+        <div class="col" style="flex:0 0 120px;align-self:end"><button class="btn" onclick="removeRow(this)">Remove</button></div>
+      `;
+      document.getElementById('membersList').appendChild(div);
+    }
+    function addMember(){alert('Addition clicked - you can add new member rows below'); addMemberRow();}
+    function removeRow(btn){btn.closest('.member-row').remove();}
+
+    // Nominee logic
+    function addNomineeRow(data){
+      const div = document.createElement('div');
+      div.className='row nominee-row';
+      div.innerHTML = `
+        <div class="col"><label>Relation</label><select class="nom-rel"><option>Spouse</option><option>Son</option><option>Daughter</option><option>Father</option><option>Mother</option></select></div>
+        <div class="col"><label>Full Name</label><input type="text" class="nom-name" /></div>
+        <div class="col"><label>Birth Date</label><input type="date" class="nom-dob" /></div>
+        <div class="col" style="flex:0 0 120px;align-self:end"><button class="btn" onclick="removeRow(this)">Remove</button></div>
+      `;
+      document.getElementById('nomineeList').appendChild(div);
+    }
+    function addNominee(){alert('Addition clicked for nominee'); addNomineeRow();}
+
+    // Correction / deletion markers
+    function markCorrection(page){ alert('Marking Correction on page '+page + '. Now you may edit the fields on that page.'); }
+    function markDeletion(page){ if(confirm('Confirm Deletion for page '+page+'?')){ alert('Marked for deletion. Please review and submit.'); }}
+
+    // close flow when clicking outside (optional)
+    document.querySelectorAll('.modal').forEach(m=>{ m.addEventListener('click', (e)=>{ if(e.target===m){ m.classList.remove('open'); } }); });
+
+    // initial: create one member and one nominee row for UX
+    addMemberRow(); addNomineeRow();
+
+    // Make step clicks navigate
+    document.querySelectorAll('.steps .step').forEach(s=>{ s.addEventListener('click', ()=>{ currentPage = parseInt(s.dataset.step); updateSteps(); openAccordionByPage(currentPage); }); });
+
+  </script>
+</body>
+</html>
